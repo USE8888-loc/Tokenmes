@@ -1,0 +1,1289 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kho Quy Trình Xưởng</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --bg: #F7F6F3;
+    --sidebar-bg: #EFEDE9;
+    --white: #FFFFFF;
+    --text: #1A1A1A;
+    --text-muted: #6B6B6B;
+    --text-light: #9B9B9B;
+    --border: #E3E1DC;
+    --accent-blue: #2563EB;
+    --accent-blue-light: #EFF6FF;
+    --accent-red: #DC2626;
+    --accent-red-light: #FEF2F2;
+    --accent-green: #16A34A;
+    --accent-green-light: #F0FDF4;
+    --accent-yellow: #D97706;
+    --accent-yellow-light: #FFFBEB;
+    --tag-bg: #E8E6E1;
+    --sidebar-width: 260px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'IBM Plex Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; }
+
+  /* ── SIDEBAR ───────────────────────────────────────── */
+  .sidebar { width: var(--sidebar-width); min-height: 100vh; background: var(--sidebar-bg); border-right: 1px solid var(--border); display: flex; flex-direction: column; position: fixed; top: 0; left: 0; overflow-y: auto; }
+  .sidebar-header { padding: 20px 16px 12px; border-bottom: 1px solid var(--border); }
+  .workspace-name { font-size: 13px; font-weight: 600; color: var(--text); display: flex; align-items: center; gap: 8px; }
+  .workspace-icon { width: 24px; height: 24px; background: var(--text); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 13px; color: var(--white); }
+  .sidebar-section { padding: 12px 8px 8px; }
+  .sidebar-section-label { font-size: 11px; font-weight: 600; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.08em; padding: 0 8px; margin-bottom: 4px; }
+  .sidebar-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; cursor: pointer; font-size: 13.5px; color: var(--text-muted); transition: background 0.1s; user-select: none; }
+  .sidebar-item:hover { background: rgba(0,0,0,0.06); }
+  .sidebar-item.active { background: var(--white); color: var(--text); font-weight: 500; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+  .sidebar-item-icon { font-size: 16px; flex-shrink: 0; }
+  .sidebar-item-badge { margin-left: auto; font-size: 11px; background: var(--tag-bg); color: var(--text-muted); padding: 1px 6px; border-radius: 10px; font-family: 'IBM Plex Mono', monospace; }
+  .add-station-btn { display: flex; align-items: center; gap: 6px; padding: 6px 8px; margin: 0 8px 8px; border-radius: 6px; cursor: pointer; font-size: 13px; color: var(--text-light); transition: all 0.1s; border: 1px dashed var(--border); }
+  .add-station-btn:hover { background: rgba(0,0,0,0.04); color: var(--text-muted); }
+
+  /* ── MAIN ──────────────────────────────────────────── */
+  .main { margin-left: var(--sidebar-width); flex: 1; min-height: 100vh; display: flex; flex-direction: column; }
+  .topbar { background: var(--white); border-bottom: 1px solid var(--border); padding: 10px 32px; display: flex; align-items: center; gap: 10px; position: sticky; top: 0; z-index: 10; }
+  .breadcrumb { font-size: 13px; color: var(--text-light); display: flex; align-items: center; gap: 6px; }
+  .breadcrumb-active { color: var(--text); font-weight: 500; }
+  .topbar-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+
+  /* ── SYNC STATUS ───────────────────────────────────── */
+  .sync-status { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-light); font-family: 'IBM Plex Mono', monospace; padding: 4px 10px; border-radius: 20px; background: var(--bg); border: 1px solid var(--border); }
+  .sync-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .sync-dot.ok { background: var(--accent-green); }
+  .sync-dot.loading { background: var(--accent-yellow); animation: pulse 1s infinite; }
+  .sync-dot.error { background: var(--accent-red); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  /* ── BUTTONS ───────────────────────────────────────── */
+  .btn { font-family: 'IBM Plex Sans', sans-serif; font-size: 13px; padding: 6px 14px; border-radius: 6px; border: 1px solid var(--border); background: var(--white); color: var(--text); cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.1s; white-space: nowrap; }
+  .btn:hover { background: var(--bg); }
+  .btn-primary { background: var(--text); color: var(--white); border-color: var(--text); }
+  .btn-primary:hover { background: #333; }
+  .btn-danger { background: var(--accent-red-light); color: var(--accent-red); border-color: #FECACA; }
+  .btn-danger:hover { background: #FEE2E2; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* ── CONTENT ───────────────────────────────────────── */
+  .content { padding: 48px 40px; max-width: 880px; }
+
+  /* ── HOME ──────────────────────────────────────────── */
+  .home-emoji { font-size: 48px; margin-bottom: 16px; display: block; }
+  .home-title { font-size: 32px; font-weight: 600; margin-bottom: 8px; }
+  .home-sub { font-size: 15px; color: var(--text-muted); margin-bottom: 40px; line-height: 1.6; }
+  .station-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; margin-bottom: 32px; }
+  .station-card { background: var(--white); border: 1px solid var(--border); border-radius: 10px; padding: 20px; cursor: pointer; transition: all 0.15s; }
+  .station-card:hover { border-color: #C0BDBA; box-shadow: 0 2px 8px rgba(0,0,0,0.08); transform: translateY(-1px); }
+  .card-emoji { font-size: 28px; margin-bottom: 12px; display: block; }
+  .card-cn { font-size: 11px; font-family: 'IBM Plex Mono', monospace; color: var(--text-light); margin-bottom: 4px; }
+  .card-vn { font-size: 15px; font-weight: 600; margin-bottom: 12px; }
+  .card-stats { display: flex; gap: 8px; flex-wrap: wrap; }
+  .stat-pill { font-size: 11px; padding: 3px 8px; border-radius: 20px; font-weight: 500; }
+  .stat-video { background: var(--accent-blue-light); color: var(--accent-blue); }
+  .stat-error { background: var(--accent-red-light); color: var(--accent-red); }
+  .stat-note { background: var(--accent-green-light); color: var(--accent-green); }
+
+  /* ── STATION PAGE ──────────────────────────────────── */
+  .station-header { margin-bottom: 28px; }
+  .station-emoji-big { font-size: 52px; margin-bottom: 12px; display: block; }
+  .station-cn-label { font-size: 12px; font-family: 'IBM Plex Mono', monospace; color: var(--text-light); background: var(--tag-bg); display: inline-block; padding: 3px 10px; border-radius: 4px; margin-bottom: 8px; }
+  .station-title-big { font-size: 30px; font-weight: 600; margin-bottom: 8px; }
+  .station-desc { font-size: 14px; color: var(--text-muted); line-height: 1.7; }
+  .station-header-actions { display: flex; gap: 8px; margin-top: 16px; }
+  .divider { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
+  .section { margin-bottom: 36px; }
+  .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .section-title { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; text-transform: uppercase; letter-spacing: 0.06em; }
+  .section-icon { width: 24px; height: 24px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 13px; }
+  .icon-blue { background: var(--accent-blue-light); }
+  .icon-red { background: var(--accent-red-light); }
+  .icon-green { background: var(--accent-green-light); }
+  .btn-add-item { font-size: 12px; padding: 4px 10px; border-radius: 5px; border: 1px dashed var(--border); background: transparent; color: var(--text-light); cursor: pointer; font-family: 'IBM Plex Sans', sans-serif; display: flex; align-items: center; gap: 4px; transition: all 0.1s; }
+  .btn-add-item:hover { background: var(--tag-bg); color: var(--text-muted); }
+
+  /* ── VIDEO / ERROR / NOTE ITEMS ────────────────────── */
+  .video-item { background: var(--white); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; margin-bottom: 10px; display: flex; gap: 16px; align-items: flex-start; position: relative; }
+  .video-thumb { width: 100px; height: 62px; background: linear-gradient(135deg, #1e3a5f, #2563EB); border-radius: 6px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 22px; cursor: pointer; text-decoration: none; transition: opacity 0.1s; }
+  .video-thumb:hover { opacity: 0.85; }
+  .video-body { flex: 1; min-width: 0; }
+  .video-title { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+  .video-meta { font-size: 12px; color: var(--text-light); margin-bottom: 8px; word-break: break-all; }
+  .video-desc { font-size: 13px; color: var(--text-muted); line-height: 1.6; }
+  .item-actions { display: flex; gap: 6px; position: absolute; top: 12px; right: 14px; opacity: 0; transition: opacity 0.15s; }
+  .video-item:hover .item-actions, .error-item:hover .item-actions, .note-item:hover .item-actions { opacity: 1; }
+  .icon-btn { width: 26px; height: 26px; border-radius: 5px; border: 1px solid var(--border); background: var(--white); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 13px; transition: background 0.1s; }
+  .icon-btn:hover { background: var(--bg); }
+  .icon-btn.danger:hover { background: var(--accent-red-light); border-color: var(--accent-red); }
+  .error-item { background: var(--white); border: 1px solid var(--border); border-left: 3px solid var(--accent-red); border-radius: 0 10px 10px 0; padding: 14px 16px; margin-bottom: 10px; position: relative; }
+  .error-title { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+  .error-cause { font-size: 12px; color: var(--text-light); font-family: 'IBM Plex Mono', monospace; margin-bottom: 6px; }
+  .error-fix { font-size: 13px; color: var(--text-muted); line-height: 1.6; }
+  .note-item { background: var(--accent-yellow-light); border: 1px solid #FDE68A; border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; position: relative; }
+  .note-date { font-size: 11px; color: var(--accent-yellow); font-weight: 600; margin-bottom: 4px; font-family: 'IBM Plex Mono', monospace; }
+  .note-text { font-size: 13px; color: #78350F; line-height: 1.7; }
+  .empty-state { text-align: center; padding: 28px; background: var(--white); border: 1px dashed var(--border); border-radius: 10px; color: var(--text-light); font-size: 13px; margin-bottom: 10px; }
+
+  /* ── MODAL ─────────────────────────────────────────── */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.35); z-index: 100; align-items: center; justify-content: center; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: var(--white); border-radius: 12px; padding: 28px; width: 480px; max-width: 92vw; box-shadow: 0 12px 40px rgba(0,0,0,0.18); max-height: 92vh; overflow-y: auto; }
+  .modal-title { font-size: 16px; font-weight: 600; margin-bottom: 20px; }
+  .form-group { margin-bottom: 16px; }
+  .form-label { font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; display: block; }
+  .form-input { width: 100%; font-family: 'IBM Plex Sans', sans-serif; font-size: 14px; padding: 9px 12px; border: 1px solid var(--border); border-radius: 7px; background: var(--bg); color: var(--text); outline: none; transition: border-color 0.15s; }
+  .form-input:focus { border-color: var(--accent-blue); background: var(--white); }
+  textarea.form-input { resize: vertical; min-height: 80px; }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
+
+  /* ── LOADING ───────────────────────────────────────── */
+  .page-loading { display: none; position: fixed; inset: 0; background: rgba(247,246,243,0.85); z-index: 200; align-items: center; justify-content: center; flex-direction: column; gap: 16px; font-size: 14px; color: var(--text-muted); }
+  .page-loading.show { display: flex; }
+  .spinner { width: 32px; height: 32px; border: 3px solid var(--border); border-top-color: var(--text); border-radius: 50%; animation: spin 0.7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── SEED BANNER ───────────────────────────────────── */
+  .seed-banner { background: var(--accent-blue-light); border: 1px solid #BFDBFE; border-radius: 10px; padding: 16px 20px; margin-bottom: 24px; display: flex; align-items: center; gap: 16px; }
+  .seed-banner-text { flex: 1; font-size: 14px; color: #1E40AF; }
+  .seed-banner-text strong { display: block; margin-bottom: 2px; }
+
+  /* ── SEARCH ────────────────────────────────────────── */
+  .search-trigger { display: flex; align-items: center; gap: 7px; padding: 5px 12px; border-radius: 6px; background: var(--bg); border: 1px solid var(--border); color: var(--text-muted); cursor: pointer; font-size: 13px; font-family: 'IBM Plex Sans', sans-serif; transition: all 0.1s; min-width: 190px; }
+  .search-trigger:hover { border-color: #C0BDBA; color: var(--text); }
+  .search-trigger kbd { margin-left: auto; font-size: 10px; background: var(--tag-bg); padding: 1px 5px; border-radius: 3px; font-family: 'IBM Plex Mono', monospace; color: var(--text-light); }
+  .search-modal { width: 620px; padding: 0; overflow: hidden; }
+  .search-input-wrap { padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+  .search-input-main { flex: 1; font-family: 'IBM Plex Sans', sans-serif; font-size: 15px; border: none; outline: none; background: transparent; color: var(--text); }
+  .search-input-main::placeholder { color: var(--text-light); }
+  .search-results-container { max-height: 420px; overflow-y: auto; }
+  .search-group-label { font-size: 11px; font-weight: 600; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.08em; padding: 10px 18px 4px; }
+  .search-result-item { display: flex; align-items: flex-start; gap: 12px; padding: 9px 18px; cursor: pointer; transition: background 0.1s; }
+  .search-result-item:hover, .search-result-item.selected { background: var(--bg); }
+  .search-result-type { font-size: 10px; padding: 2px 7px; border-radius: 10px; font-weight: 600; flex-shrink: 0; margin-top: 3px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .type-station { background: var(--tag-bg); color: var(--text-muted); }
+  .type-video { background: var(--accent-blue-light); color: var(--accent-blue); }
+  .type-error { background: var(--accent-red-light); color: var(--accent-red); }
+  .type-note { background: var(--accent-yellow-light); color: var(--accent-yellow); }
+  .search-result-body { flex: 1; min-width: 0; }
+  .search-result-title { font-size: 13.5px; font-weight: 500; margin-bottom: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .search-result-sub { font-size: 12px; color: var(--text-light); }
+  .search-empty { text-align: center; padding: 48px 24px; color: var(--text-light); }
+  .search-empty-icon { font-size: 32px; margin-bottom: 10px; }
+  .search-footer { padding: 8px 18px; border-top: 1px solid var(--border); font-size: 11px; color: var(--text-light); display: flex; gap: 14px; }
+  mark { background: #FEF08A; color: var(--text); border-radius: 2px; padding: 0 1px; }
+
+  /* ── ADMIN MODE ────────────────────────────────────── */
+  .admin-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; padding: 4px 10px; border-radius: 20px; cursor: pointer; font-family: 'IBM Plex Mono', monospace; border: 1px solid var(--border); transition: all 0.15s; user-select: none; }
+  .admin-badge.viewer { color: var(--text-light); background: var(--bg); }
+  .admin-badge.admin { color: var(--accent-green); background: var(--accent-green-light); border-color: #86EFAC; }
+  body:not(.admin-mode) .admin-only { display: none !important; }
+  body:not(.admin-mode) .item-actions { display: none !important; }
+  body:not(.admin-mode) .station-header-actions { display: none !important; }
+  body:not(.admin-mode) .btn-add-item { display: none !important; }
+  body:not(.admin-mode) .add-station-btn { display: none !important; }
+
+  /* ── DRAG & DROP ───────────────────────────────────── */
+  .sidebar-item.dragging { opacity: 0.3; }
+  .sidebar-item.drag-over { background: var(--accent-blue-light) !important; outline: 1px dashed var(--accent-blue); color: var(--accent-blue) !important; }
+  .drag-handle { font-size: 11px; color: var(--text-light); opacity: 0; transition: opacity 0.1s; cursor: grab; margin-right: -2px; flex-shrink: 0; }
+  body.admin-mode .sidebar-item:hover .drag-handle { opacity: 1; }
+
+  /* ── DASHBOARD ─────────────────────────────────────── */
+  .dash-hero { margin-bottom: 32px; }
+  .dash-title { font-size: 26px; font-weight: 600; margin-bottom: 4px; }
+  .dash-sub { font-size: 14px; color: var(--text-muted); }
+  .dash-stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(145px, 1fr)); gap: 10px; margin-bottom: 36px; }
+  .dash-stat { background: var(--white); border: 1px solid var(--border); border-radius: 10px; padding: 18px; }
+  .dash-stat-icon { font-size: 20px; margin-bottom: 10px; }
+  .dash-stat-num { font-size: 32px; font-weight: 600; font-family: 'IBM Plex Mono', monospace; line-height: 1; margin-bottom: 4px; }
+  .dash-stat-label { font-size: 11px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
+  .dash-section-title { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border); color: var(--text); }
+  .dash-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; margin-bottom: 32px; }
+  .dash-station-row { background: var(--white); border: 1px solid var(--border); border-radius: 8px; padding: 11px 15px; margin-bottom: 8px; display: flex; align-items: center; gap: 12px; cursor: pointer; transition: all 0.1s; }
+  .dash-station-row:hover { border-color: #C0BDBA; transform: translateX(3px); box-shadow: 0 1px 5px rgba(0,0,0,0.06); }
+  .dash-station-emoji { font-size: 20px; flex-shrink: 0; }
+  .dash-station-name { font-size: 13.5px; font-weight: 500; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dash-station-pills { display: flex; gap: 5px; flex-shrink: 0; }
+  .dash-recent-note { background: var(--accent-yellow-light); border: 1px solid #FDE68A; border-radius: 8px; padding: 10px 14px; margin-bottom: 8px; cursor: pointer; transition: all 0.1s; }
+  .dash-recent-note:hover { background: #FEF3C7; }
+  .dash-rn-station { font-size: 11px; color: var(--accent-yellow); font-weight: 600; margin-bottom: 3px; }
+  .dash-rn-text { font-size: 13px; color: #78350F; line-height: 1.5; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .dash-alert { background: var(--accent-red-light); border: 1px solid #FECACA; border-radius: 8px; padding: 10px 14px; margin-bottom: 8px; display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--accent-red); cursor: pointer; transition: all 0.1s; }
+  .dash-alert:hover { background: #FEE2E2; }
+  .dash-empty { text-align: center; padding: 24px; background: var(--white); border: 1px dashed var(--border); border-radius: 8px; color: var(--text-light); font-size: 13px; }
+
+  /* ── DELETE STATION MODAL ──────────────────────────── */
+  .delete-zone { background: var(--accent-red-light); border: 1px solid #FECACA; border-radius: 8px; padding: 14px 16px; margin-bottom: 16px; font-size: 13px; color: #7F1D1D; line-height: 1.6; }
+
+  /* ── PRINT OPTIONS ─────────────────────────────────── */
+  .print-opt { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; margin-bottom: 10px; transition: all 0.15s; }
+  .print-opt:hover { border-color: #C0BDBA; background: var(--bg); }
+  .print-opt-icon { font-size: 24px; flex-shrink: 0; }
+  .print-opt-label { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+  .print-opt-sub { font-size: 12px; color: var(--text-muted); }
+
+  /* ── PRINT MEDIA ───────────────────────────────────── */
+  #printContainer { display: none; }
+  @media print {
+    .sidebar, .topbar, .item-actions, .btn-add-item, .add-station-btn,
+    .seed-banner, .station-header-actions, .admin-badge, .search-trigger,
+    .sync-status, .btn { display: none !important; }
+    body { display: block !important; background: white !important; }
+    .main { margin-left: 0 !important; }
+    .content { display: none !important; }
+    #printContainer { display: block !important; padding: 24px; font-family: 'IBM Plex Sans', sans-serif; }
+    .print-station-break { page-break-before: always; }
+    .p-video, .p-error, .p-note { break-inside: avoid; page-break-inside: avoid; }
+  }
+
+  /* ── RESPONSIVE ────────────────────────────────────── */
+  @media (max-width: 700px) {
+    .sidebar { width: 100%; min-height: auto; position: relative; }
+    .main { margin-left: 0; }
+    body { flex-direction: column; }
+    .content { padding: 24px 16px; }
+    .topbar { padding: 10px 16px; }
+    .sync-status { display: none; }
+    .search-trigger { min-width: auto; }
+    .search-trigger kbd { display: none; }
+    .dash-two-col { grid-template-columns: 1fr; }
+    .search-modal { width: 95vw; }
+  }
+</style>
+</head>
+<body>
+
+<!-- PRINT CONTAINER -->
+<div id="printContainer"></div>
+
+<!-- LOADING OVERLAY -->
+<div class="page-loading" id="pageLoading">
+  <div class="spinner"></div>
+  <span id="loadingMsg">Đang kết nối Supabase...</span>
+</div>
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <div class="workspace-name">
+      <div class="workspace-icon">🏭</div>
+      Kho Quy Trình Xưởng
+    </div>
+  </div>
+  <div class="sidebar-section">
+    <div class="sidebar-section-label">Trang chính</div>
+    <div class="sidebar-item active" onclick="showHome()" id="nav-home">
+      <span class="sidebar-item-icon">🏠</span> Tổng quan
+    </div>
+    <div class="sidebar-item" onclick="showDashboard()" id="nav-dashboard">
+      <span class="sidebar-item-icon">📊</span> Thống kê
+    </div>
+  </div>
+  <div class="sidebar-section">
+    <div class="sidebar-section-label">Công đoạn</div>
+    <div id="stationNav"></div>
+    <div class="add-station-btn" onclick="openStationModal()" id="addStationBtn">
+      <span>＋</span> Thêm công đoạn
+    </div>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<div class="main">
+  <div class="topbar">
+    <div class="breadcrumb" id="breadcrumb">
+      <span>🏭 Kho Quy Trình</span>
+    </div>
+    <div class="topbar-actions">
+      <button class="search-trigger" onclick="openSearch()">
+        🔍 Tìm kiếm... <kbd>Ctrl K</kbd>
+      </button>
+      <div class="sync-status" id="syncStatus">
+        <span class="sync-dot loading"></span>
+        <span>Đang kết nối...</span>
+      </div>
+      <button class="btn" onclick="openPrintModal()">🖨️ In</button>
+      <div class="admin-badge viewer" id="adminBadge" onclick="toggleAdmin()">🔒 Viewer</div>
+    </div>
+  </div>
+  <div class="content" id="mainContent"></div>
+</div>
+
+<!-- ══════════════ MODALS ══════════════ -->
+
+<!-- Search -->
+<div class="modal-overlay" id="searchModal">
+  <div class="modal search-modal">
+    <div class="search-input-wrap">
+      <span style="font-size:17px;">🔍</span>
+      <input class="search-input-main" id="searchInput" placeholder="Tìm công đoạn, video, lỗi, ghi chú..." autocomplete="off">
+      <kbd style="font-size:11px;background:var(--tag-bg);padding:2px 6px;border-radius:4px;font-family:monospace;color:var(--text-light);flex-shrink:0;">ESC</kbd>
+    </div>
+    <div class="search-results-container" id="searchResults">
+      <div class="search-empty"><div class="search-empty-icon">🔍</div><div>Nhập từ khoá để tìm kiếm</div></div>
+    </div>
+    <div class="search-footer">
+      <span>↑↓ Điều hướng</span><span>↵ Chọn</span><span>ESC Đóng</span>
+    </div>
+  </div>
+</div>
+
+<!-- Print Options -->
+<div class="modal-overlay" id="printModal">
+  <div class="modal" style="width:420px;">
+    <div class="modal-title">🖨️ Tuỳ chọn in / xuất PDF</div>
+    <p style="font-size:13px;color:var(--text-muted);margin-bottom:18px;line-height:1.6;">Chọn nội dung muốn in ra giấy. Để xuất PDF, trong cửa sổ in hãy chọn <strong>"Save as PDF"</strong>.</p>
+    <div class="print-opt" onclick="doPrintCurrent()" id="printCurrentOpt">
+      <div class="print-opt-icon">📄</div>
+      <div>
+        <div class="print-opt-label">In công đoạn hiện tại</div>
+        <div class="print-opt-sub" id="printCurrentSub">Chỉ in nội dung đang xem</div>
+      </div>
+    </div>
+    <div class="print-opt" onclick="doPrintAll()">
+      <div class="print-opt-icon">📚</div>
+      <div>
+        <div class="print-opt-label">In toàn bộ kho quy trình</div>
+        <div class="print-opt-sub" id="printAllSub">In tất cả công đoạn</div>
+      </div>
+    </div>
+    <div class="modal-actions" style="margin-top:8px;">
+      <button class="btn" onclick="closeModal('printModal')">Đóng</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add/Edit Video -->
+<div class="modal-overlay" id="videoModal">
+  <div class="modal">
+    <div class="modal-title" id="videoModalTitle">📹 Thêm video hướng dẫn</div>
+    <div class="form-group">
+      <label class="form-label">Tiêu đề video *</label>
+      <input class="form-input" id="vTitle" placeholder="Ví dụ: Hướng dẫn đăng nhập MES">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Link YouTube / Drive</label>
+      <input class="form-input" id="vLink" placeholder="https://youtube.com/watch?v=...">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Mô tả ngắn</label>
+      <textarea class="form-input" id="vDesc" placeholder="Video dành cho ai, hướng dẫn bước nào..."></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('videoModal')">Hủy</button>
+      <button class="btn btn-primary" id="btnSaveVideo" onclick="saveVideo()">💾 Lưu</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add/Edit Error -->
+<div class="modal-overlay" id="errorModal">
+  <div class="modal">
+    <div class="modal-title" id="errorModalTitle">⚠️ Thêm lỗi thường gặp</div>
+    <div class="form-group">
+      <label class="form-label">Tên lỗi *</label>
+      <input class="form-input" id="eTitle" placeholder="Ví dụ: Scan mã không nhận">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Nguyên nhân</label>
+      <input class="form-input" id="eCause" placeholder="Ví dụ: Góc chiếu đèn sai...">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Cách xử lý *</label>
+      <textarea class="form-input" id="eFix" placeholder="Các bước xử lý cụ thể..."></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('errorModal')">Hủy</button>
+      <button class="btn btn-primary" id="btnSaveError" onclick="saveError()">💾 Lưu</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Note -->
+<div class="modal-overlay" id="noteModal">
+  <div class="modal">
+    <div class="modal-title">📝 Thêm ghi chú cập nhật</div>
+    <div class="form-group">
+      <label class="form-label">Nội dung ghi chú *</label>
+      <textarea class="form-input" id="nText" placeholder="Ví dụ: Cập nhật quy trình v1.2..." style="min-height:100px;"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('noteModal')">Hủy</button>
+      <button class="btn btn-primary" id="btnSaveNote" onclick="saveNote()">💾 Lưu</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add/Edit Station -->
+<div class="modal-overlay" id="stationModal">
+  <div class="modal">
+    <div class="modal-title" id="stationModalTitle">🏭 Thêm công đoạn mới</div>
+    <div class="form-group">
+      <label class="form-label">Tên tiếng Việt *</label>
+      <input class="form-input" id="sNameVN" placeholder="Ví dụ: Kiểm tra ngoại quan">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Tên tiếng Trung (tuỳ chọn)</label>
+      <input class="form-input" id="sNameCN" placeholder="Ví dụ: 外观检查">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Emoji đại diện</label>
+      <input class="form-input" id="sEmoji" placeholder="🔧" maxlength="2" style="max-width:100px;">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Mô tả công đoạn</label>
+      <textarea class="form-input" id="sDesc" placeholder="Mô tả ngắn về mục đích, yêu cầu của công đoạn này..."></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('stationModal')">Hủy</button>
+      <button class="btn btn-primary" id="btnSaveStation" onclick="saveStation()">➕ Thêm</button>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Station Confirmation -->
+<div class="modal-overlay" id="deleteStationModal">
+  <div class="modal" style="width:440px;">
+    <div class="modal-title" style="color:var(--accent-red);">🗑️ Xóa công đoạn</div>
+    <div class="delete-zone">
+      Thao tác này sẽ <strong>xóa vĩnh viễn</strong> công đoạn
+      <strong id="deleteStationName"></strong>
+      cùng toàn bộ video, lỗi và ghi chú bên trong. <strong>Không thể hoàn tác.</strong>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Nhập tên công đoạn để xác nhận</label>
+      <input class="form-input" id="deleteConfirmInput" placeholder="Nhập chính xác tên tiếng Việt..." style="border-color:var(--accent-red);">
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('deleteStationModal')">Hủy</button>
+      <button class="btn btn-danger" id="btnConfirmDelete" onclick="confirmDeleteStation()">🗑️ Xóa vĩnh viễn</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ╔══════════════════════════════════════════════════════════════╗
+// ║         ⚙️  CẤU HÌNH — ĐIỀU CHỈNH Ở ĐÂY                   ║
+// ╚══════════════════════════════════════════════════════════════╝
+const SUPABASE_URL      = 'https://bcgoslhdayalervgfexb.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJjZ29zbGhkYXlhbGVydmdmZXhiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4NzIyMTYsImV4cCI6MjA5NjQ0ODIxNn0.5CBZjHTxojdbddlBD5LH4ZnDr-pE71qfTZReFkhnn9E';
+const ADMIN_PIN         = '1234';
+// ══════════════════════════════════════════════════════════════
+
+const IS_CONFIGURED = SUPABASE_URL !== 'PASTE_SUPABASE_URL_HERE'
+                   && SUPABASE_ANON_KEY !== 'PASTE_SUPABASE_ANON_KEY_HERE';
+
+let sb = null;
+if (IS_CONFIGURED) {
+  const { createClient } = supabase;
+  sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+}
+
+let data = { stations: [] };
+let currentStation = null;
+let currentView = 'home';
+let editingId = null;
+let editingStationId = null;
+let pendingDeleteId = null;
+let isSaving = false;
+let isAdmin = (sessionStorage.getItem('kqt_admin') === '1');
+let dragSrcEl = null;
+let searchResults = [];
+let searchSelectedIdx = -1;
+
+const SEED_DATA = [
+  { id: 's1', emoji: '📦', sort_order: 0, cn: 'Panel批量接收绑定工单', vn: 'Nhận Panel & gắn lệnh sản xuất',
+    description: 'Công đoạn tiếp nhận Panel hàng loạt và liên kết với lệnh sản xuất trên hệ thống MES.',
+    videos: [{ id: 'v1', title: 'Hướng dẫn nhận Panel và gắn lệnh trên MES', link: '', description: 'Video tổng quan cho người mới vào công đoạn. Bao gồm các bước đăng nhập, chọn lệnh, và xác nhận hoàn thành.', sort_order: 0 }],
+    errors: [{ id: 'e1', title: 'Lệnh sản xuất không hiện trên MES', cause: 'Chưa sync dữ liệu hoặc nhập sai mã lệnh', fix: '1. Kiểm tra lại mã lệnh với tổ trưởng\n2. Nhấn F5 để refresh MES\n3. Nếu vẫn không thấy, báo IT', sort_order: 0 }],
+    notes: [{ id: 'n1', date: '05/06/2026', text: 'Cập nhật: từ ngày 06/06 phải scan mã QR mới trước khi nhận Panel.' }] },
+  { id: 's2', emoji: '🔍', sort_order: 1, cn: '偏前检查', vn: 'Kiểm tra trước dán phim phân cực',
+    description: 'Kiểm tra bề mặt Panel trước khi tiến hành dán phim phân cực. Phát hiện lỗi sớm tránh lãng phí.',
+    videos: [{ id: 'v2', title: 'Quy trình kiểm tra 偏前 chuẩn', link: '', description: 'Hướng dẫn các điểm kiểm tra bắt buộc, cách ghi nhận kết quả vào MES và xử lý khi phát hiện lỗi.', sort_order: 0 }],
+    errors: [{ id: 'e2', title: 'Bề mặt có bụi không phát hiện được', cause: 'Ánh sáng kiểm tra không đủ hoặc góc nhìn sai', fix: '1. Bật đèn kiểm tra hết công suất\n2. Nghiêng Panel 45° dưới đèn\n3. Dùng kính lúp nếu nghi ngờ', sort_order: 0 }],
+    notes: [] },
+  { id: 's3', emoji: '🧲', sort_order: 2, cn: '偏光片贴附', vn: 'Dán phim phân cực (Polarizer)',
+    description: 'Công đoạn dán phim phân cực lên Panel. Yêu cầu độ chính xác cao, tránh bụi và bong bóng khí.',
+    videos: [
+      { id: 'v3', title: 'Hướng dẫn dán Polarizer đúng kỹ thuật', link: '', description: 'Video chi tiết từng bước: chuẩn bị bề mặt, canh chỉnh phim, dán và kiểm tra sau dán.', sort_order: 0 },
+      { id: 'v4', title: 'Cách xử lý bong bóng khí sau khi dán', link: '', description: 'Các trường hợp bong bóng thường gặp và phương án xử lý theo chuẩn QA.', sort_order: 1 }
+    ],
+    errors: [
+      { id: 'e3', title: 'Bong bóng khí sau khi dán', cause: 'Dán quá nhanh hoặc bề mặt có bụi nhỏ', fix: '1. Dùng con lăn ép từ giữa ra ngoài\n2. Nếu bong bóng lớn hơn 2mm → tách phim, làm lại\n3. Ghi nhận vào MES mục 不良', sort_order: 0 },
+      { id: 'e4', title: 'Phim lệch so với Panel', cause: 'Canh chỉnh sai trước khi dán', fix: '1. Tách phim ngay nếu phát hiện sớm\n2. Vệ sinh bề mặt trước khi dán lại\n3. Báo tổ trưởng nếu lệch nhiều', sort_order: 1 }
+    ],
+    notes: [{ id: 'n2', date: '01/06/2026', text: 'Lưu ý: Lô hàng mới từ nhà cung cấp A có phim mỏng hơn 0.02mm, cần điều chỉnh lực ép con lăn.' }] },
+  { id: 's4', emoji: '⚡', sort_order: 3, cn: 'FOG邦定', vn: 'FOG Bonding',
+    description: 'Công đoạn liên kết FOG (Film on Glass) — dán và ép dẫn nhiệt lên mạch FPC. Yêu cầu nhiệt độ và áp suất chính xác.',
+    videos: [{ id: 'v5', title: 'Hướng dẫn FOG Bonding toàn bộ quy trình', link: '', description: 'Bao gồm cài đặt thông số máy, kiểm tra trước khi chạy, thao tác chuẩn và kiểm tra kết quả.', sort_order: 0 }],
+    errors: [
+      { id: 'e5', title: 'Máy báo lỗi nhiệt độ vượt ngưỡng', cause: 'Cảm biến nhiệt bị lệch hoặc nguồn điện không ổn định', fix: '1. Tắt máy 3 phút\n2. Khởi động lại và kiểm tra thông số\n3. Nếu lỗi lặp lại → gọi bảo trì, không tự sửa', sort_order: 0 },
+      { id: 'e6', title: 'FPC bị cong sau khi bond', cause: 'Áp suất không đều hoặc thời gian ép sai', fix: '1. Kiểm tra lại thông số áp suất trong MES\n2. Thử lại với Panel mới\n3. Báo QA kiểm tra lô đó', sort_order: 1 }
+    ],
+    notes: [] },
+  { id: 's5', emoji: '💡', sort_order: 4, cn: '一检点灯', vn: 'Kiểm tra đèn lần 1 (1st Lighting)',
+    description: 'Bật đèn kiểm tra màn hình lần đầu sau khi hoàn thành các công đoạn trước. Phát hiện lỗi hiển thị, điểm chết, sọc màu.',
+    videos: [{ id: 'v6', title: 'Quy trình 一检点灯 — kiểm tra đèn lần 1', link: '', description: 'Hướng dẫn bật đèn, các pattern kiểm tra, cách nhận biết lỗi và ghi nhận vào MES.', sort_order: 0 }],
+    errors: [
+      { id: 'e7', title: 'Màn hình không sáng khi bật đèn', cause: 'FPC chưa kết nối đủ tiếp xúc hoặc lỗi từ công đoạn FOG', fix: '1. Kiểm tra lại kết nối FPC\n2. Đẩy lại FPC nhẹ nhàng\n3. Nếu vẫn không sáng → chuyển sang khu vực 不良, báo QA', sort_order: 0 },
+      { id: 'e8', title: 'Xuất hiện điểm chết (dead pixel)', cause: 'Lỗi từ Panel hoặc tổn thương trong quá trình dán', fix: '1. Ghi nhận vị trí điểm chết\n2. Chụp ảnh làm bằng chứng\n3. Nhập vào MES mục 不良 với mã lỗi DP-01', sort_order: 1 }
+    ],
+    notes: [{ id: 'n3', date: '03/06/2026', text: 'Nhắc nhở: Pattern kiểm tra phải chạy đủ 5 màu (đỏ, xanh lá, xanh dương, trắng, đen). Không được bỏ qua bước màu đen.' }] }
+];
+
+function uid() { return 'id_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 5); }
+function formatDate(d) { return (d || new Date()).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }); }
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function showPageLoading(show, msg) {
+  const el = document.getElementById('pageLoading');
+  el.classList.toggle('show', show);
+  if (msg) document.getElementById('loadingMsg').textContent = msg;
+}
+function setSyncStatus(state, msg) {
+  const el = document.getElementById('syncStatus');
+  const dot = state === 'ok' ? 'ok' : state === 'error' ? 'error' : 'loading';
+  const label = msg || (state === 'ok' ? 'Đã đồng bộ' : state === 'error' ? 'Lỗi kết nối' : 'Đang đồng bộ...');
+  el.innerHTML = `<span class="sync-dot ${dot}"></span><span>${label}</span>`;
+}
+function setBtnLoading(btnId, loading) {
+  const btn = document.getElementById(btnId);
+  if (!btn) return;
+  btn.disabled = loading;
+  if (loading) btn.dataset.orig = btn.innerHTML;
+  else if (btn.dataset.orig) btn.innerHTML = btn.dataset.orig;
+}
+
+async function loadAllData(silent = false) {
+  if (!IS_CONFIGURED) return;
+  if (!silent) setSyncStatus('loading');
+  try {
+    const [stRes, vRes, eRes, nRes] = await Promise.all([
+      sb.from('stations').select('*').order('sort_order'),
+      sb.from('videos').select('*').order('sort_order'),
+      sb.from('errors').select('*').order('sort_order'),
+      sb.from('notes').select('*').order('created_at', { ascending: false })
+    ]);
+    if (stRes.error) throw stRes.error;
+    const stations = stRes.data || [];
+    const videos   = vRes.data  || [];
+    const errors   = eRes.data  || [];
+    const notes    = nRes.data  || [];
+    data.stations = stations.map(s => ({
+      ...s,
+      videos: videos.filter(v => v.station_id === s.id).map(v => ({
+        id: v.id, station_id: v.station_id, title: v.title,
+        link: v.link || '', desc: v.description || '', sort_order: v.sort_order
+      })),
+      errors: errors.filter(e => e.station_id === s.id).map(e => ({
+        id: e.id, station_id: e.station_id, title: e.title,
+        cause: e.cause || '', fix: e.fix || '', sort_order: e.sort_order
+      })),
+      notes: notes.filter(n => n.station_id === s.id).map(n => ({
+        id: n.id, station_id: n.station_id, date: n.date || '', text: n.text || ''
+      }))
+    }));
+    setSyncStatus('ok');
+    renderSidebarNav();
+    if (currentStation) {
+      const updated = data.stations.find(s => s.id === currentStation.id);
+      if (updated) { currentStation = updated; renderStation(); }
+      else showHome();
+    } else if (currentView === 'dashboard') showDashboard();
+    else showHome();
+  } catch(err) {
+    setSyncStatus('error', 'Lỗi kết nối');
+    console.error('Load error:', err);
+  }
+}
+
+function setupRealtime() {
+  if (!IS_CONFIGURED) return;
+  sb.channel('kho-quy-trinh-v2')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'stations' }, () => loadAllData(true))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'videos' },   () => loadAllData(true))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'errors' },   () => loadAllData(true))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'notes' },    () => loadAllData(true))
+    .subscribe(status => {
+      if (status === 'SUBSCRIBED') setSyncStatus('ok', 'Realtime ✓');
+    });
+}
+
+function applyAdminUI() {
+  document.body.classList.toggle('admin-mode', isAdmin);
+  const badge = document.getElementById('adminBadge');
+  badge.className = 'admin-badge ' + (isAdmin ? 'admin' : 'viewer');
+  badge.textContent = isAdmin ? '🔓 Admin' : '🔒 Viewer';
+  if (isAdmin) setupDragDrop();
+}
+
+function toggleAdmin() {
+  if (isAdmin) {
+    if (confirm('Thoát chế độ Admin?')) {
+      isAdmin = false;
+      sessionStorage.removeItem('kqt_admin');
+      applyAdminUI();
+    }
+  } else {
+    const pin = prompt('🔐 Nhập mã PIN quản trị:');
+    if (pin === null) return;
+    if (pin === ADMIN_PIN) {
+      isAdmin = true;
+      sessionStorage.setItem('kqt_admin', '1');
+      applyAdminUI();
+      showToast('✅ Đã vào chế độ Admin');
+    } else {
+      showToast('❌ Sai mã PIN!', 'error');
+    }
+  }
+}
+
+function showToast(msg, type = 'ok') {
+  let t = document.getElementById('toast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'toast';
+    t.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:9999;padding:10px 18px;border-radius:8px;font-size:13px;font-family:IBM Plex Sans,sans-serif;box-shadow:0 4px 16px rgba(0,0,0,0.15);transition:all 0.3s;opacity:0;transform:translateY(8px);';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.style.background = type === 'error' ? '#FEF2F2' : '#F0FDF4';
+  t.style.color = type === 'error' ? '#DC2626' : '#16A34A';
+  t.style.border = type === 'error' ? '1px solid #FECACA' : '1px solid #86EFAC';
+  t.style.opacity = '1';
+  t.style.transform = 'translateY(0)';
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => { t.style.opacity='0'; t.style.transform='translateY(8px)'; }, 2800);
+}
+
+function openSearch() {
+  document.getElementById('searchInput').value = '';
+  document.getElementById('searchResults').innerHTML = '<div class="search-empty"><div class="search-empty-icon">🔍</div><div>Nhập từ khoá để tìm kiếm</div></div>';
+  searchResults = [];
+  searchSelectedIdx = -1;
+  document.getElementById('searchModal').classList.add('open');
+  setTimeout(() => document.getElementById('searchInput').focus(), 50);
+}
+
+function highlight(text, q) {
+  if (!q) return esc(text);
+  const re = new RegExp('(' + q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + ')', 'gi');
+  return esc(text).replace(re, '<mark>$1</mark>');
+}
+
+function doSearch(q) {
+  const query = q.trim().toLowerCase();
+  searchResults = [];
+  if (!query) {
+    document.getElementById('searchResults').innerHTML = '<div class="search-empty"><div class="search-empty-icon">🔍</div><div>Nhập từ khoá để tìm kiếm</div></div>';
+    return;
+  }
+  for (const s of data.stations) {
+    if (s.vn.toLowerCase().includes(query) || s.cn.toLowerCase().includes(query) || (s.description||'').toLowerCase().includes(query))
+      searchResults.push({ type: 'station', station: s, title: s.vn, sub: s.cn });
+    for (const v of s.videos)
+      if (v.title.toLowerCase().includes(query) || (v.desc||'').toLowerCase().includes(query))
+        searchResults.push({ type: 'video', station: s, title: v.title, sub: s.emoji + ' ' + s.vn });
+    for (const e of s.errors)
+      if (e.title.toLowerCase().includes(query) || (e.cause||'').toLowerCase().includes(query) || (e.fix||'').toLowerCase().includes(query))
+        searchResults.push({ type: 'error', station: s, title: e.title, sub: s.emoji + ' ' + s.vn });
+    for (const n of s.notes)
+      if (n.text.toLowerCase().includes(query))
+        searchResults.push({ type: 'note', station: s, title: n.text.substring(0, 60) + (n.text.length > 60 ? '...' : ''), sub: s.emoji + ' ' + s.vn + ' · ' + n.date });
+  }
+  const labels = { station: 'Công đoạn', video: 'Video', error: 'Lỗi', note: 'Ghi chú' };
+  const icons  = { station: '🏭', video: '▶️', error: '⚠️', note: '📝' };
+  if (searchResults.length === 0) {
+    document.getElementById('searchResults').innerHTML = `<div class="search-empty"><div class="search-empty-icon">😔</div><div>Không tìm thấy kết quả cho "<strong>${esc(q)}</strong>"</div></div>`;
+    return;
+  }
+  let html = '';
+  const types = ['station', 'video', 'error', 'note'];
+  for (const type of types) {
+    const group = searchResults.filter(r => r.type === type);
+    if (!group.length) continue;
+    html += `<div class="search-group-label">${icons[type]} ${labels[type]} (${group.length})</div>`;
+    for (const r of group) {
+      const idx = searchResults.indexOf(r);
+      html += `<div class="search-result-item" data-idx="${idx}" onclick="selectSearchResult(${idx})">
+        <span class="search-result-type type-${type}">${labels[type]}</span>
+        <div class="search-result-body">
+          <div class="search-result-title">${highlight(r.title, q)}</div>
+          <div class="search-result-sub">${esc(r.sub)}</div>
+        </div>
+      </div>`;
+    }
+  }
+  document.getElementById('searchResults').innerHTML = html;
+  searchSelectedIdx = -1;
+}
+
+function selectSearchResult(idx) {
+  const r = searchResults[idx];
+  if (!r) return;
+  closeModal('searchModal');
+  showStation(r.station.id);
+}
+
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); openSearch(); }
+  if (e.key === 'Escape') {
+    document.querySelectorAll('.modal-overlay.open').forEach(m => {
+      if (!isSaving) m.classList.remove('open');
+    });
+  }
+});
+
+document.getElementById('searchInput').addEventListener('input', e => doSearch(e.target.value));
+document.getElementById('searchInput').addEventListener('keydown', e => {
+  const items = document.querySelectorAll('#searchResults .search-result-item');
+  if (!items.length) return;
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    searchSelectedIdx = Math.min(searchSelectedIdx + 1, items.length - 1);
+    items.forEach((el, i) => el.classList.toggle('selected', i === searchSelectedIdx));
+    items[searchSelectedIdx]?.scrollIntoView({ block: 'nearest' });
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    searchSelectedIdx = Math.max(searchSelectedIdx - 1, 0);
+    items.forEach((el, i) => el.classList.toggle('selected', i === searchSelectedIdx));
+    items[searchSelectedIdx]?.scrollIntoView({ block: 'nearest' });
+  } else if (e.key === 'Enter' && searchSelectedIdx >= 0) {
+    selectSearchResult(parseInt(items[searchSelectedIdx].dataset.idx));
+  }
+});
+
+function setupDragDrop() {
+  if (!isAdmin) return;
+  const items = document.querySelectorAll('#stationNav .sidebar-item[data-station-id]');
+  items.forEach(item => {
+    item.setAttribute('draggable', 'true');
+    item.addEventListener('dragstart', onDragStart);
+    item.addEventListener('dragover',  onDragOver);
+    item.addEventListener('dragleave', onDragLeave);
+    item.addEventListener('drop',      onDrop);
+    item.addEventListener('dragend',   onDragEnd);
+  });
+}
+function onDragStart(e) { dragSrcEl = this; e.dataTransfer.effectAllowed = 'move'; setTimeout(() => this.classList.add('dragging'), 0); }
+function onDragOver(e) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (this !== dragSrcEl) this.classList.add('drag-over'); }
+function onDragLeave() { this.classList.remove('drag-over'); }
+function onDrop(e) {
+  e.stopPropagation();
+  this.classList.remove('drag-over');
+  if (dragSrcEl && dragSrcEl !== this) {
+    const srcId = dragSrcEl.dataset.stationId;
+    const tgtId = this.dataset.stationId;
+    reorderStations(srcId, tgtId);
+  }
+}
+function onDragEnd() {
+  this.classList.remove('dragging');
+  document.querySelectorAll('.sidebar-item').forEach(el => el.classList.remove('drag-over', 'dragging'));
+}
+async function reorderStations(srcId, tgtId) {
+  const arr = [...data.stations];
+  const srcIdx = arr.findIndex(s => s.id === srcId);
+  const tgtIdx = arr.findIndex(s => s.id === tgtId);
+  if (srcIdx < 0 || tgtIdx < 0) return;
+  const [moved] = arr.splice(srcIdx, 1);
+  arr.splice(tgtIdx, 0, moved);
+  data.stations = arr;
+  renderSidebarNav();
+  try {
+    for (let i = 0; i < arr.length; i++)
+      await sb.from('stations').update({ sort_order: i }).eq('id', arr[i].id);
+    showToast('✅ Đã lưu thứ tự');
+  } catch(err) {
+    showToast('❌ Lỗi lưu thứ tự', 'error');
+    await loadAllData(true);
+  }
+}
+
+function showDashboard() {
+  currentStation = null;
+  currentView = 'dashboard';
+  document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
+  document.getElementById('nav-dashboard')?.classList.add('active');
+  document.getElementById('breadcrumb').innerHTML = '<span>📊 Thống kê tổng hợp</span>';
+  const total = { stations: data.stations.length, videos: 0, errors: 0, notes: 0 };
+  const noVideos = [], allNotes = [];
+  for (const s of data.stations) {
+    total.videos += s.videos.length;
+    total.errors += s.errors.length;
+    total.notes  += s.notes.length;
+    if (s.videos.length === 0) noVideos.push(s);
+    s.notes.forEach(n => allNotes.push({ ...n, station: s }));
+  }
+  const recentNotes = allNotes.slice(0, 5);
+  const stationRows = data.stations.map(s => `
+    <div class="dash-station-row" onclick="showStation('${s.id}')">
+      <div class="dash-station-emoji">${s.emoji}</div>
+      <div class="dash-station-name">${esc(s.vn)}</div>
+      <div class="dash-station-pills">
+        <span class="stat-pill stat-video">▶ ${s.videos.length}</span>
+        <span class="stat-pill stat-error">⚠ ${s.errors.length}</span>
+        <span class="stat-pill stat-note">📝 ${s.notes.length}</span>
+      </div>
+    </div>`).join('');
+  const recentNoteRows = recentNotes.length ? recentNotes.map(n => `
+    <div class="dash-recent-note" onclick="showStation('${n.station.id}')">
+      <div class="dash-rn-station">${n.station.emoji} ${esc(n.station.vn)} · ${n.date}</div>
+      <div class="dash-rn-text">${esc(n.text)}</div>
+    </div>`).join('') : '<div class="dash-empty">Chưa có ghi chú nào.</div>';
+  const alertRows = noVideos.length ? noVideos.map(s => `
+    <div class="dash-alert" onclick="showStation('${s.id}')">
+      <span>⚠️</span>
+      <span><strong>${esc(s.vn)}</strong> — chưa có video hướng dẫn</span>
+      <span style="margin-left:auto;font-size:11px;">Thêm ngay →</span>
+    </div>`).join('') : '<div class="dash-empty">✅ Tất cả công đoạn đều có video.</div>';
+  document.getElementById('mainContent').innerHTML = `
+    <div class="dash-hero">
+      <div class="dash-title">📊 Thống kê tổng hợp</div>
+      <div class="dash-sub">Cập nhật theo thời gian thực · ${data.stations.length} công đoạn đang hoạt động</div>
+    </div>
+    <div class="dash-stat-grid">
+      <div class="dash-stat"><div class="dash-stat-icon">🏭</div><div class="dash-stat-num">${total.stations}</div><div class="dash-stat-label">Công đoạn</div></div>
+      <div class="dash-stat"><div class="dash-stat-icon">▶️</div><div class="dash-stat-num" style="color:var(--accent-blue);">${total.videos}</div><div class="dash-stat-label">Video</div></div>
+      <div class="dash-stat"><div class="dash-stat-icon">⚠️</div><div class="dash-stat-num" style="color:var(--accent-red);">${total.errors}</div><div class="dash-stat-label">Lỗi ghi nhận</div></div>
+      <div class="dash-stat"><div class="dash-stat-icon">📝</div><div class="dash-stat-num" style="color:var(--accent-green);">${total.notes}</div><div class="dash-stat-label">Ghi chú</div></div>
+    </div>
+    <div class="dash-section-title">Tất cả công đoạn</div>
+    <div style="margin-bottom:32px;">${stationRows || '<div class="dash-empty">Chưa có công đoạn nào.</div>'}</div>
+    <div class="dash-two-col">
+      <div><div class="dash-section-title">📝 Ghi chú gần nhất</div>${recentNoteRows}</div>
+      <div><div class="dash-section-title">⚠️ Cần bổ sung video</div>${alertRows}</div>
+    </div>`;
+}
+
+function openPrintModal() {
+  const sub = document.getElementById('printCurrentSub');
+  if (currentStation) {
+    sub.textContent = `In công đoạn: ${currentStation.emoji} ${currentStation.vn}`;
+    document.getElementById('printCurrentOpt').style.opacity = '1';
+    document.getElementById('printCurrentOpt').style.pointerEvents = '';
+  } else {
+    sub.textContent = 'Hãy chọn một công đoạn trước';
+    document.getElementById('printCurrentOpt').style.opacity = '0.4';
+    document.getElementById('printCurrentOpt').style.pointerEvents = 'none';
+  }
+  document.getElementById('printAllSub').textContent = `In tất cả ${data.stations.length} công đoạn`;
+  document.getElementById('printModal').classList.add('open');
+}
+
+function buildStationPrintHTML(s, isFirst) {
+  const vids  = s.videos.map(v => `<div class="p-video" style="border:1px solid #E3E1DC;border-radius:8px;padding:12px;margin-bottom:8px;"><div style="font-weight:600;margin-bottom:4px;">${esc(v.title)}</div>${v.link?`<div style="font-size:12px;color:#6B6B6B;">🔗 ${esc(v.link)}</div>`:''}<div style="font-size:13px;color:#6B6B6B;margin-top:4px;">${esc(v.desc)}</div></div>`).join('');
+  const errs  = s.errors.map(e => `<div class="p-error" style="border:1px solid #E3E1DC;border-left:3px solid #DC2626;border-radius:0 8px 8px 0;padding:12px;margin-bottom:8px;"><div style="font-weight:600;margin-bottom:4px;">⚠️ ${esc(e.title)}</div>${e.cause?`<div style="font-size:12px;color:#9B9B9B;margin-bottom:4px;">Nguyên nhân: ${esc(e.cause)}</div>`:''}<div style="font-size:13px;color:#6B6B6B;">${esc(e.fix).replace(/\n/g,'<br>')}</div></div>`).join('');
+  const notes = s.notes.map(n => `<div class="p-note" style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;padding:10px 12px;margin-bottom:8px;"><div style="font-size:11px;color:#D97706;font-weight:600;margin-bottom:3px;">📅 ${esc(n.date)}</div><div style="font-size:13px;color:#78350F;">${esc(n.text)}</div></div>`).join('');
+  return `<div${isFirst?'':' class="print-station-break"'}>
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid #E3E1DC;">
+      <span style="font-size:40px;">${s.emoji}</span>
+      <div>
+        <div style="font-size:11px;color:#9B9B9B;font-family:monospace;">${esc(s.cn)}</div>
+        <div style="font-size:22px;font-weight:600;">${esc(s.vn)}</div>
+        ${s.description?`<div style="font-size:13px;color:#6B6B6B;margin-top:3px;">${esc(s.description)}</div>`:''}
+      </div>
+    </div>
+    ${s.videos.length?`<div style="margin-bottom:20px;"><div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#2563EB;margin-bottom:10px;">▶ VIDEO HƯỚNG DẪN</div>${vids}</div>`:''}
+    ${s.errors.length?`<div style="margin-bottom:20px;"><div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#DC2626;margin-bottom:10px;">⚠ LỖI THƯỜNG GẶP</div>${errs}</div>`:''}
+    ${s.notes.length?`<div style="margin-bottom:20px;"><div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#16A34A;margin-bottom:10px;">📝 GHI CHÚ CẬP NHẬT</div>${notes}</div>`:''}
+  </div>`;
+}
+
+function doPrintCurrent() {
+  if (!currentStation) return;
+  closeModal('printModal');
+  document.getElementById('printContainer').innerHTML = `
+    <div style="font-family:'IBM Plex Sans',sans-serif;padding:24px;">
+      <div style="font-size:11px;color:#9B9B9B;margin-bottom:24px;">🏭 Kho Quy Trình Xưởng · In ngày ${formatDate()}</div>
+      ${buildStationPrintHTML(currentStation, true)}
+    </div>`;
+  setTimeout(() => { window.print(); setTimeout(() => document.getElementById('printContainer').innerHTML = '', 1000); }, 100);
+}
+
+function doPrintAll() {
+  closeModal('printModal');
+  const body = data.stations.map((s, i) => buildStationPrintHTML(s, i === 0)).join('');
+  document.getElementById('printContainer').innerHTML = `
+    <div style="font-family:'IBM Plex Sans',sans-serif;padding:24px;">
+      <h1 style="font-size:24px;font-weight:600;margin-bottom:4px;">Kho Quy Trình Xưởng</h1>
+      <div style="font-size:13px;color:#6B6B6B;margin-bottom:32px;">In ngày ${formatDate()} · ${data.stations.length} công đoạn</div>
+      ${body}
+    </div>`;
+  setTimeout(() => { window.print(); setTimeout(() => document.getElementById('printContainer').innerHTML = '', 1000); }, 100);
+}
+
+function renderSidebarNav() {
+  const nav = document.getElementById('stationNav');
+  nav.innerHTML = data.stations.map(s => `
+    <div class="sidebar-item ${currentStation && currentStation.id === s.id ? 'active' : ''}"
+         data-station-id="${s.id}" onclick="showStation('${s.id}')" id="nav-${s.id}">
+      <span class="drag-handle">⠿</span>
+      <span class="sidebar-item-icon">${s.emoji}</span>
+      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(s.vn)}</span>
+      <span class="sidebar-item-badge">${s.videos.length}v</span>
+    </div>`).join('');
+  if (isAdmin) setupDragDrop();
+}
+
+function showHome() {
+  currentStation = null;
+  currentView = 'home';
+  document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
+  document.getElementById('nav-home')?.classList.add('active');
+  document.getElementById('breadcrumb').innerHTML = '<span>🏭 Kho Quy Trình</span>';
+  const c = document.getElementById('mainContent');
+  if (!IS_CONFIGURED) {
+    c.innerHTML = `<div style="padding:60px 40px;max-width:680px;"><div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:36px;"><h2>⚙️ Chưa kết nối Supabase</h2><p style="color:var(--text-muted);margin-top:8px;">Điền SUPABASE_URL và SUPABASE_ANON_KEY vào đầu file script.</p></div></div>`;
+    return;
+  }
+  const seedBanner = data.stations.length === 0 ? `
+    <div class="seed-banner">
+      <div style="font-size:28px;">📦</div>
+      <div class="seed-banner-text"><strong>Database đang trống</strong>Bấm nút để cài 5 công đoạn mẫu.</div>
+      <button class="btn btn-primary" onclick="seedInitialData()">🚀 Cài dữ liệu mẫu</button>
+    </div>` : '';
+  c.innerHTML = `
+    ${seedBanner}
+    <span class="home-emoji">🏭</span>
+    <h1 class="home-title">Kho Quy Trình Xưởng</h1>
+    <p class="home-sub">Lưu trữ video hướng dẫn, lỗi thường gặp và ghi chú cho từng công đoạn sản xuất.<br>Bấm vào công đoạn để xem chi tiết.</p>
+    <div class="station-cards">
+      ${data.stations.map(s => `
+        <div class="station-card" onclick="showStation('${s.id}')">
+          <span class="card-emoji">${s.emoji}</span>
+          <div class="card-cn">${esc(s.cn)}</div>
+          <div class="card-vn">${esc(s.vn)}</div>
+          <div class="card-stats">
+            <span class="stat-pill stat-video">▶ ${s.videos.length} video</span>
+            <span class="stat-pill stat-error">⚠ ${s.errors.length} lỗi</span>
+            <span class="stat-pill stat-note">📝 ${s.notes.length} ghi chú</span>
+          </div>
+        </div>`).join('')}
+    </div>`;
+}
+
+function showStation(id) {
+  currentStation = data.stations.find(s => s.id === id);
+  if (!currentStation) return;
+  currentView = 'station';
+  document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
+  document.getElementById('nav-' + id)?.classList.add('active');
+  document.getElementById('breadcrumb').innerHTML = `
+    <span style="cursor:pointer;color:var(--text-light)" onclick="showHome()">🏭 Kho Quy Trình</span>
+    <span style="color:var(--text-light)">›</span>
+    <span class="breadcrumb-active">${currentStation.emoji} ${esc(currentStation.vn)}</span>`;
+  renderStation();
+}
+
+function renderStation() {
+  const s = currentStation;
+  const c = document.getElementById('mainContent');
+  const videoHTML = s.videos.length === 0
+    ? `<div class="empty-state">Chưa có video nào. Nhấn "+ Thêm video" để thêm.</div>`
+    : s.videos.map(v => `
+      <div class="video-item">
+        <a class="video-thumb" href="${esc(v.link) || '#'}" target="_blank" title="Xem video">▶️</a>
+        <div class="video-body">
+          <div class="video-title">${esc(v.title)}</div>
+          <div class="video-meta">${v.link ? '🔗 ' + esc(v.link.substring(0, 60)) + (v.link.length > 60 ? '...' : '') : '⚠️ Chưa có link video'}</div>
+          <div class="video-desc">${esc(v.desc)}</div>
+        </div>
+        <div class="item-actions">
+          <button class="icon-btn" onclick="editVideo('${v.id}')" title="Sửa">✏️</button>
+          <button class="icon-btn danger" onclick="deleteItem('${s.id}','videos','${v.id}')" title="Xóa">🗑️</button>
+        </div>
+      </div>`).join('');
+  const errorHTML = s.errors.length === 0
+    ? `<div class="empty-state">Chưa có lỗi nào được ghi nhận.</div>`
+    : s.errors.map(e => `
+      <div class="error-item">
+        <div class="error-title">⚠️ ${esc(e.title)}</div>
+        ${e.cause ? `<div class="error-cause">Nguyên nhân: ${esc(e.cause)}</div>` : ''}
+        <div class="error-fix">${esc(e.fix).replace(/\n/g,'<br>')}</div>
+        <div class="item-actions">
+          <button class="icon-btn" onclick="editError('${e.id}')" title="Sửa">✏️</button>
+          <button class="icon-btn danger" onclick="deleteItem('${s.id}','errors','${e.id}')" title="Xóa">🗑️</button>
+        </div>
+      </div>`).join('');
+  const noteHTML = s.notes.length === 0
+    ? `<div class="empty-state">Chưa có ghi chú nào.</div>`
+    : s.notes.map(n => `
+      <div class="note-item">
+        <div class="note-date">📅 ${esc(n.date)}</div>
+        <div class="note-text">${esc(n.text)}</div>
+        <div class="item-actions">
+          <button class="icon-btn danger" onclick="deleteItem('${s.id}','notes','${n.id}')" title="Xóa">🗑️</button>
+        </div>
+      </div>`).join('');
+  c.innerHTML = `
+    <div class="station-header">
+      <span class="station-emoji-big">${s.emoji}</span>
+      <span class="station-cn-label">${esc(s.cn)}</span>
+      <h1 class="station-title-big">${esc(s.vn)}</h1>
+      <p class="station-desc">${esc(s.description || '')}</p>
+      <div class="station-header-actions">
+        <button class="btn" onclick="openStationModal('${s.id}')">✏️ Sửa công đoạn</button>
+        <button class="btn btn-danger" onclick="openDeleteStation('${s.id}')">🗑️ Xóa công đoạn</button>
+      </div>
+    </div>
+    <hr class="divider">
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title"><div class="section-icon icon-blue">▶</div> Video hướng dẫn</div>
+        <button class="btn-add-item" onclick="openVideoModal()">＋ Thêm video</button>
+      </div>
+      ${videoHTML}
+    </div>
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title"><div class="section-icon icon-red">⚠</div> Lỗi thường gặp</div>
+        <button class="btn-add-item" onclick="openErrorModal()">＋ Thêm lỗi</button>
+      </div>
+      ${errorHTML}
+    </div>
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title"><div class="section-icon icon-green">📝</div> Ghi chú cập nhật</div>
+        <button class="btn-add-item" onclick="openNoteModal()">＋ Thêm ghi chú</button>
+      </div>
+      ${noteHTML}
+    </div>`;
+}
+
+function openStationModal(editId) {
+  editingStationId = editId || null;
+  if (editId) {
+    const s = data.stations.find(x => x.id === editId);
+    if (!s) return;
+    document.getElementById('stationModalTitle').textContent = '✏️ Sửa công đoạn';
+    document.getElementById('btnSaveStation').textContent = '💾 Lưu thay đổi';
+    document.getElementById('sNameVN').value = s.vn || '';
+    document.getElementById('sNameCN').value = s.cn || '';
+    document.getElementById('sEmoji').value  = s.emoji || '';
+    document.getElementById('sDesc').value   = s.description || '';
+  } else {
+    document.getElementById('stationModalTitle').textContent = '🏭 Thêm công đoạn mới';
+    document.getElementById('btnSaveStation').textContent = '➕ Thêm';
+    document.getElementById('sNameVN').value = '';
+    document.getElementById('sNameCN').value = '';
+    document.getElementById('sEmoji').value  = '';
+    document.getElementById('sDesc').value   = '';
+  }
+  document.getElementById('stationModal').classList.add('open');
+}
+
+async function saveStation() {
+  if (isSaving) return;
+  const vn = document.getElementById('sNameVN').value.trim();
+  if (!vn) { alert('Vui lòng nhập tên tiếng Việt!'); return; }
+  isSaving = true;
+  setBtnLoading('btnSaveStation', true);
+  const obj = {
+    emoji: document.getElementById('sEmoji').value.trim() || '🔧',
+    cn:    document.getElementById('sNameCN').value.trim() || '',
+    vn,
+    description: document.getElementById('sDesc').value.trim()
+  };
+  let error, newId;
+  if (editingStationId) {
+    const res = await sb.from('stations').update(obj).eq('id', editingStationId);
+    error = res.error;
+    newId = editingStationId;
+  } else {
+    newId = uid();
+    const res = await sb.from('stations').insert({ id: newId, ...obj, sort_order: data.stations.length });
+    error = res.error;
+  }
+  isSaving = false;
+  setBtnLoading('btnSaveStation', false);
+  if (error) { alert('❌ Lỗi: ' + error.message); return; }
+  closeModal('stationModal');
+  await loadAllData();
+  showStation(newId);
+  showToast(editingStationId ? '✅ Đã cập nhật công đoạn' : '✅ Đã thêm công đoạn mới');
+}
+
+function openDeleteStation(id) {
+  const s = data.stations.find(x => x.id === id);
+  if (!s) return;
+  pendingDeleteId = id;
+  document.getElementById('deleteStationName').textContent = s.vn;
+  document.getElementById('deleteConfirmInput').value = '';
+  document.getElementById('deleteStationModal').classList.add('open');
+}
+
+async function confirmDeleteStation() {
+  const s = data.stations.find(x => x.id === pendingDeleteId);
+  if (!s) return;
+  const typed = document.getElementById('deleteConfirmInput').value.trim();
+  if (typed !== s.vn) { showToast('❌ Tên không khớp, không xóa.', 'error'); return; }
+  setBtnLoading('btnConfirmDelete', true);
+  try {
+    await sb.from('videos').delete().eq('station_id', pendingDeleteId);
+    await sb.from('errors').delete().eq('station_id', pendingDeleteId);
+    await sb.from('notes').delete().eq('station_id', pendingDeleteId);
+    await sb.from('stations').delete().eq('id', pendingDeleteId);
+    closeModal('deleteStationModal');
+    pendingDeleteId = null;
+    await loadAllData();
+    showHome();
+    showToast('✅ Đã xóa công đoạn');
+  } catch(err) {
+    showToast('❌ Lỗi xóa: ' + err.message, 'error');
+  } finally {
+    setBtnLoading('btnConfirmDelete', false);
+  }
+}
+
+function openVideoModal(editId) {
+  editingId = editId || null;
+  document.getElementById('videoModalTitle').textContent = editId ? '✏️ Sửa video' : '📹 Thêm video hướng dẫn';
+  if (editId) {
+    const v = currentStation.videos.find(x => x.id === editId);
+    document.getElementById('vTitle').value = v.title;
+    document.getElementById('vLink').value  = v.link;
+    document.getElementById('vDesc').value  = v.desc;
+  } else {
+    document.getElementById('vTitle').value = '';
+    document.getElementById('vLink').value  = '';
+    document.getElementById('vDesc').value  = '';
+  }
+  document.getElementById('videoModal').classList.add('open');
+}
+function editVideo(id) { openVideoModal(id); }
+
+async function saveVideo() {
+  if (isSaving) return;
+  const title = document.getElementById('vTitle').value.trim();
+  if (!title) { alert('Vui lòng nhập tiêu đề video!'); return; }
+  isSaving = true; setBtnLoading('btnSaveVideo', true);
+  const obj = {
+    id: editingId || uid(),
+    station_id: currentStation.id,
+    title,
+    link: document.getElementById('vLink').value.trim(),
+    description: document.getElementById('vDesc').value.trim(),
+    sort_order: editingId ? currentStation.videos.findIndex(x => x.id === editingId) : currentStation.videos.length
+  };
+  const { error } = await sb.from('videos').upsert(obj);
+  isSaving = false; setBtnLoading('btnSaveVideo', false);
+  if (error) { alert('❌ Lỗi lưu video: ' + error.message); return; }
+  closeModal('videoModal');
+  await loadAllData();
+  showToast('✅ Đã lưu video');
+}
+
+function openErrorModal(editId) {
+  editingId = editId || null;
+  document.getElementById('errorModalTitle').textContent = editId ? '✏️ Sửa lỗi' : '⚠️ Thêm lỗi thường gặp';
+  if (editId) {
+    const e = currentStation.errors.find(x => x.id === editId);
+    document.getElementById('eTitle').value = e.title;
+    document.getElementById('eCause').value = e.cause;
+    document.getElementById('eFix').value   = e.fix;
+  } else {
+    document.getElementById('eTitle').value = '';
+    document.getElementById('eCause').value = '';
+    document.getElementById('eFix').value   = '';
+  }
+  document.getElementById('errorModal').classList.add('open');
+}
+function editError(id) { openErrorModal(id); }
+
+async function saveError() {
+  if (isSaving) return;
+  const title = document.getElementById('eTitle').value.trim();
+  if (!title) { alert('Vui lòng nhập tên lỗi!'); return; }
+  isSaving = true; setBtnLoading('btnSaveError', true);
+  const obj = {
+    id: editingId || uid(),
+    station_id: currentStation.id,
+    title,
+    cause: document.getElementById('eCause').value.trim(),
+    fix:   document.getElementById('eFix').value.trim(),
+    sort_order: editingId ? currentStation.errors.findIndex(x => x.id === editingId) : currentStation.errors.length
+  };
+  const { error } = await sb.from('errors').upsert(obj);
+  isSaving = false; setBtnLoading('btnSaveError', false);
+  if (error) { alert('❌ Lỗi lưu: ' + error.message); return; }
+  closeModal('errorModal');
+  await loadAllData();
+  showToast('✅ Đã lưu lỗi');
+}
+
+function openNoteModal() {
+  document.getElementById('nText').value = '';
+  document.getElementById('noteModal').classList.add('open');
+}
+async function saveNote() {
+  if (isSaving) return;
+  const text = document.getElementById('nText').value.trim();
+  if (!text) { alert('Vui lòng nhập nội dung ghi chú!'); return; }
+  isSaving = true; setBtnLoading('btnSaveNote', true);
+  const { error } = await sb.from('notes').insert({ id: uid(), station_id: currentStation.id, date: formatDate(), text });
+  isSaving = false; setBtnLoading('btnSaveNote', false);
+  if (error) { alert('❌ Lỗi lưu ghi chú: ' + error.message); return; }
+  closeModal('noteModal');
+  await loadAllData();
+  showToast('✅ Đã thêm ghi chú');
+}
+
+async function deleteItem(stationId, type, itemId) {
+  if (!confirm('Xóa mục này?')) return;
+  const { error } = await sb.from(type).delete().eq('id', itemId);
+  if (error) { alert('❌ Lỗi xóa: ' + error.message); return; }
+  await loadAllData();
+  showToast('✅ Đã xóa');
+}
+
+async function seedInitialData() {
+  if (!confirm('Cài dữ liệu mẫu 5 công đoạn vào Supabase? Chỉ nên làm 1 lần.')) return;
+  showPageLoading(true, 'Đang cài dữ liệu mẫu...');
+  try {
+    for (const s of SEED_DATA) {
+      await sb.from('stations').upsert({ id: s.id, emoji: s.emoji, cn: s.cn, vn: s.vn, description: s.description, sort_order: s.sort_order });
+      for (const v of s.videos) await sb.from('videos').upsert({ id: v.id, station_id: s.id, title: v.title, link: v.link, description: v.description, sort_order: v.sort_order });
+      for (const e of s.errors) await sb.from('errors').upsert({ id: e.id, station_id: s.id, title: e.title, cause: e.cause, fix: e.fix, sort_order: e.sort_order });
+      for (const n of s.notes)  await sb.from('notes').upsert({ id: n.id, station_id: s.id, date: n.date, text: n.text });
+    }
+    showToast('✅ Đã cài dữ liệu mẫu!');
+    await loadAllData();
+  } catch(err) {
+    alert('❌ Lỗi: ' + err.message);
+  } finally {
+    showPageLoading(false);
+  }
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+  editingId = null;
+  if (id === 'stationModal') editingStationId = null;
+  if (id === 'deleteStationModal') pendingDeleteId = null;
+}
+document.querySelectorAll('.modal-overlay').forEach(m => {
+  m.addEventListener('click', e => { if (e.target === m && !isSaving) m.classList.remove('open'); });
+});
+
+async function initApp() {
+  applyAdminUI();
+  if (!IS_CONFIGURED) {
+    setSyncStatus('error', 'Chưa cấu hình');
+    renderSidebarNav();
+    showHome();
+    return;
+  }
+  showPageLoading(true, 'Đang kết nối Supabase...');
+  await loadAllData();
+  showPageLoading(false);
+  setupRealtime();
+}
+
+initApp();
+</script>
+</body>
+</html>
